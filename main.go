@@ -8,11 +8,13 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strconv"
-	"time"
+	"sync"
 
 	mystruct "firewalla/mystructs"
 )
+
+var counter int
+var wg sync.WaitGroup
 
 // read config.json with url and token
 func readJsonConfig() (string, string) {
@@ -54,11 +56,12 @@ func makeRequest(url, token string) []byte {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer resp.Body.Close()
 
-	fmt.Println("response Status:", resp.Status)
-	fmt.Println("response Headers:", resp.Header)
-	fmt.Println("response Body:", resp.Body)
+	if resp.StatusCode != 200 {
+		log.Fatal("Status code error:", resp.StatusCode, resp.Status)
+	}
+
+	defer resp.Body.Close()
 	body, _ := io.ReadAll(resp.Body)
 
 	return body
@@ -68,8 +71,10 @@ func makeRequest(url, token string) []byte {
 // get devices
 func getDevices(url, token string) {
 
+	fmt.Println("* devices started")
+
 	// Create file
-	f, err := os.Create("devices.txt")
+	f, err := os.Create("devices.json")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -82,21 +87,16 @@ func getDevices(url, token string) {
 
 	for _, device := range devices {
 
-		timestamp, err := strconv.ParseFloat(device.LastActive, 64)
+		//timestamp, err := strconv.ParseFloat(device.LastActive, 64)
 		if err != nil {
 			fmt.Println("Error parsing string:", err)
 		}
 
-		sec := int64(timestamp)
-		t := time.Unix(sec, int64((timestamp)))
-
-		formatted := t.Format("2006-01-02 15:04")
-		fmt.Println("DEVICE", formatted, device.Name, device.IP, device.MacVendor)
-
-		// Write all fields as a JSON string to file
 		jsonString, _ := json.Marshal(device)
-		f.Write([]byte(formatted + " " + string(jsonString) + "\n"))
+		f.Write([]byte(string(jsonString) + "\n"))
 	}
+
+	fmt.Println("* devices completed")
 
 }
 
@@ -104,32 +104,52 @@ func getDevices(url, token string) {
 func getAlarms(url, token string) {
 
 	// Create file
-	f, err := os.Create("alarms.txt")
+	file, err := os.Create("alarms.json")
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	defer f.Close()
+	defer file.Close()
 
 	body := makeRequest(url+"alarm/list", token)
 	alarms := mystruct.FirewallaAlarms{}
 	json.Unmarshal([]byte(body), &alarms)
 
-	fmt.Println(alarms)
+	fmt.Println("* alarms started")
 
 	for _, alarm := range alarms {
 
-		sec := int64(alarm.Timestamp)
-		t := time.Unix(sec, int64((alarm.Timestamp)))
+		aid := alarm.Aid
+		gid := alarm.Gid
 
-		formatted := t.Format("2006-01-02 15:04")
-		fmt.Println("ALARM", formatted, alarm.Device, alarm.Type, alarm.Message)
+		wg.Add(1)
 
-		// Write all fields as a JSON string to file
-		jsonString, _ := json.Marshal(alarm)
-		f.Write([]byte(formatted + " " + string(jsonString) + "\n"))
+		go getAlarmDetail(url, token, aid, gid, file)
 
 	}
+
+	wg.Wait()
+
+	fmt.Println("* all alarms completed")
+}
+
+func getAlarmDetail(url string, token string, aid string, gid string, f *os.File) {
+
+	body := makeRequest(url+"alarm/"+gid+"/"+aid, token)
+
+	alarmDetail := mystruct.FirewallaAlarmDetail{}
+	json.Unmarshal([]byte(body), &alarmDetail)
+
+	// Write all fields as a JSON string to file
+	jsonString, _ := json.Marshal(alarmDetail)
+	f.Write([]byte(string(jsonString) + "\n"))
+
+	counter++
+
+	if counter%5 == 0 {
+		fmt.Println("* alarms completed:", counter)
+	}
+
+	wg.Done()
 }
 
 // main function
@@ -139,5 +159,7 @@ func main() {
 
 	getDevices(url, token)
 	getAlarms(url, token)
+
+	fmt.Println("* script completed, exiting")
 
 }

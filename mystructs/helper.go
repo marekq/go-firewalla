@@ -1,5 +1,7 @@
 package mystructs
 
+import "time"
+
 type JsonToken struct {
 	Token string `json:"token"`
 	Url   string `json:"url"`
@@ -98,4 +100,89 @@ type FirewallaAlarms []struct {
 	PEndTs               string `json:"p.end.ts,omitempty"`
 	PTotalUsageHumansize string `json:"p.totalUsage.humansize,omitempty"`
 	PDestApp             string `json:"p.dest.app,omitempty"`
+}
+
+type FirewallaAlarmDetail struct {
+	PDeviceIP                  string   `json:"p.device.ip,omitempty"`
+	PDeviceID                  string   `json:"p.device.id,omitempty"`
+	PDestDomain                string   `json:"p.dest.domain,omitempty"`
+	PDestLatitude              string   `json:"p.dest.latitude,omitempty"`
+	Timestamp                  float64  `json:"timestamp,omitempty"`
+	PDeviceName                string   `json:"p.device.name,omitempty"`
+	PTagIds                    []string `json:"p.tag.ids,omitempty"`
+	PIntfSubnet                string   `json:"p.intf.subnet,omitempty"`
+	PDestID                    string   `json:"p.dest.id,omitempty"`
+	Message                    string   `json:"message,omitempty"`
+	PDestPort                  string   `json:"p.dest.port,omitempty"`
+	PDestName                  string   `json:"p.dest.name,omitempty"`
+	PIntfID                    string   `json:"p.intf.id,omitempty"`
+	PTransferInboundSize       string   `json:"p.transfer.inbound.size,omitempty"`
+	PDeviceMac                 string   `json:"p.device.mac,omitempty"`
+	PTransferOutboundSize      string   `json:"p.transfer.outbound.size,omitempty"`
+	PDestCountry               string   `json:"p.dest.country,omitempty"`
+	PLocalIsClient             string   `json:"p.local_is_client,omitempty"`
+	Device                     string   `json:"device,omitempty"`
+	PDestIP                    string   `json:"p.dest.ip,omitempty"`
+	AlarmTimestamp             float64  `json:"alarmTimestamp,omitempty"`
+	PDevicePort                []int    `json:"p.device.port,omitempty"`
+	PTimestampTimezone         string   `json:"p.timestampTimezone,omitempty"`
+	PDestLongitude             string   `json:"p.dest.longitude,omitempty"`
+	PTransferOutboundHumansize string   `json:"p.transfer.outbound.humansize,omitempty"`
+	PTransferInboundHumansize  string   `json:"p.transfer.inbound.humansize,omitempty"`
+	PIntfName                  string   `json:"p.intf.name,omitempty"`
+	PDeviceMacVendor           string   `json:"p.device.macVendor,omitempty"`
+	PCloudDecision             string   `json:"p.cloud.decision,omitempty"`
+	Aid                        string   `json:"aid,omitempty"`
+	PTransferDuration          string   `json:"p.transfer.duration,omitempty"`
+	PProtocol                  string   `json:"p.protocol,omitempty"`
+	Type                       string   `json:"type,omitempty"`
+	PFi                        string   `json:"p.fi,omitempty"`
+	PTagNames                  []struct {
+		UID  string `json:"uid,omitempty"`
+		Name string `json:"name,omitempty"`
+	} `json:"p.tag.names,omitempty"`
+	Gid                        string    `json:"gid,omitempty"`
+	BoxName                    string    `json:"boxName,omitempty"`
+	BoxModel                   string    `json:"boxModel,omitempty"`
+	PTagName                   string    `json:"p.tag.name,omitempty"`
+	TimeToGenerate             string    `json:"time.to.generate,omitempty"`
+	EDestIPRange               string    `json:"e.dest.ip.range,omitempty"`
+	EDestIPCidr                string    `json:"e.dest.ip.cidr,omitempty"`
+	EDestIPOrg                 string    `json:"e.dest.ip.org,omitempty"`
+	EDestIPCountry             string    `json:"e.dest.ip.country,omitempty"`
+	EDestIPCity                string    `json:"e.dest.ip.city,omitempty"`
+	EDestDomain                string    `json:"e.dest.domain,omitempty"`
+	EDestDomainCreatedDate     time.Time `json:"e.dest.domain.createdDate,omitempty"`
+	EDestDomainLastUpdatedDate time.Time `json:"e.dest.domain.lastUpdatedDate,omitempty"`
+	EDestDomainRegister        string    `json:"e.dest.domain.register,omitempty"`
+	EDestSslSubject            string    `json:"e.dest.ssl.subject,omitempty"`
+	EDestSslServerName         string    `json:"e.dest.ssl.server_name,omitempty"`
+	EDestSslCN                 string    `json:"e.dest.ssl.CN,omitempty"`
+	EDestSslO                  string    `json:"e.dest.ssl.O,omitempty"`
+	ETransfer                  string    `json:"e.transfer,omitempty"`
+	PDeviceOnline              bool      `json:"p.device.online,omitempty"`
+	Intf                       struct {
+		UUID string `json:"uuid,omitempty"`
+		Name string `json:"name,omitempty"`
+	} `json:"intf,omitempty"`
+	Tags []struct {
+		UID    string `json:"uid,omitempty"`
+		Name   string `json:"name,omitempty"`
+		Policy struct {
+		} `json:"policy,omitempty"`
+		Gid     string `json:"gid,omitempty"`
+		Devices []struct {
+			IP    string   `json:"ip,omitempty"`
+			Mac   string   `json:"mac,omitempty"`
+			Names []string `json:"names,omitempty"`
+			Name  string   `json:"name,omitempty"`
+		} `json:"devices,omitempty"`
+	} `json:"tags,omitempty"`
+	PDevicePortInfo []any `json:"p.device.port.info,omitempty"`
+	PDestPortInfo   []struct {
+		Description string `json:"description,omitempty"`
+		Name        string `json:"name,omitempty"`
+		Protocol    string `json:"protocol,omitempty"`
+		Port        string `json:"port,omitempty"`
+	} `json:"p.dest.port.info,omitempty"`
 }
