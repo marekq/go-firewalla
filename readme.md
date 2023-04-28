@@ -13,4 +13,14 @@ Download device details and alarms from the Firewalla MSP API. The results are s
 }
 ```
 - Run `go build` to build the binary.
-- Run `./go-firewalla` to run the binary.
+- Now you can one of the following commands:
+```bash
+# Get all devices
+./go-firewalla devices
+
+# Get all alarms
+./go-firewalla alarms
+
+# Get all devices and alarms
+./go-firewalla all
+```

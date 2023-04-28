@@ -85,18 +85,42 @@ func getDevices(url, token string) {
 	devices := mystruct.FirewallaDevices{}
 	json.Unmarshal([]byte(body), &devices)
 
+	wg = sync.WaitGroup{}
+
 	for _, device := range devices {
 
-		//timestamp, err := strconv.ParseFloat(device.LastActive, 64)
-		if err != nil {
-			fmt.Println("Error parsing string:", err)
-		}
+		wg.Add(1)
+		go getDeviceDetail(url, token, device.Gid, device.Mac, f)
 
-		jsonString, _ := json.Marshal(device)
-		f.Write([]byte(string(jsonString) + "\n"))
 	}
 
-	fmt.Println("* devices completed")
+	wg.Wait()
+
+	fmt.Println("- devices completed", len(devices))
+
+}
+
+// get device detail
+func getDeviceDetail(url string, token string, gid string, mac string, f *os.File) {
+
+	body := makeRequest(url+"device/"+gid+"/"+mac, token)
+
+	deviceDetail := mystruct.FirewallaDeviceDetail{}
+	json.Unmarshal([]byte(body), &deviceDetail)
+
+	// Write all fields as a JSON string to file
+	jsonString, _ := json.Marshal(deviceDetail)
+	f.Write([]byte(string(jsonString) + "\n"))
+
+	counter++
+
+	if counter%5 == 0 {
+
+		fmt.Println("* devices completed", counter)
+
+	}
+
+	wg.Done()
 
 }
 
@@ -129,9 +153,10 @@ func getAlarms(url, token string) {
 
 	wg.Wait()
 
-	fmt.Println("* all alarms completed")
+	fmt.Println("- alarms completed:", counter)
 }
 
+// get alarm detail
 func getAlarmDetail(url string, token string, aid string, gid string, f *os.File) {
 
 	body := makeRequest(url+"alarm/"+gid+"/"+aid, token)
@@ -157,9 +182,26 @@ func main() {
 
 	url, token := readJsonConfig()
 
-	getDevices(url, token)
-	getAlarms(url, token)
+	// parse arguments
+	args := os.Args[1:]
 
-	fmt.Println("* script completed, exiting")
+	if len(args) > 0 {
+		if args[0] == "devices" || args[0] == "d" {
+			getDevices(url, token)
 
+		} else if args[0] == "alarms" || args[0] == "a" {
+			getAlarms(url, token)
+
+		} else if args[0] == "all" {
+			getDevices(url, token)
+			getAlarms(url, token)
+
+		} else {
+			fmt.Println("! please specify devices, alarms or all on the command line, quitting")
+
+		}
+
+	} else {
+		fmt.Println("! please specify devices, alarms or all on the command line, quitting")
+	}
 }
