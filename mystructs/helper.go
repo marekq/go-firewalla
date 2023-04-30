@@ -340,3 +340,58 @@ type FirewallaDeviceDetail struct {
 	} `json:"newLast24"`
 	Ipv6 []any `json:"ipv6"`
 }
+
+type FirewallaFlowlogDetail []struct {
+	Count        int      `json:"count"`
+	Device       string   `json:"device"`
+	Download     int      `json:"download,omitempty"`
+	Duration     float64  `json:"duration,omitempty"`
+	Host         string   `json:"host"`
+	IP           string   `json:"ip"`
+	Ts           float64  `json:"ts"`
+	Country      string   `json:"country"`
+	DevicePort   string   `json:"devicePort"`
+	Intf         string   `json:"intf"`
+	Total        int      `json:"total,omitempty"`
+	Type         string   `json:"type"`
+	DeviceIP     string   `json:"deviceIP"`
+	Fd           string   `json:"fd"`
+	Gid          string   `json:"gid"`
+	GidExtracted string   `json:"gid_extracted"`
+	Ltype        string   `json:"ltype"`
+	Port         string   `json:"port"`
+	Protocol     string   `json:"protocol"`
+	Upload       int      `json:"upload,omitempty"`
+	DeviceName   string   `json:"deviceName"`
+	MacVendor    string   `json:"macVendor"`
+	Tags         []string `json:"tags"`
+	TagIds       []string `json:"tagIds"`
+	NetworkName  string   `json:"networkName"`
+	OnWan        bool     `json:"onWan"`
+	IntfInfo     struct {
+		Name string `json:"name"`
+		Type string `json:"type"`
+		UUID string `json:"uuid"`
+	} `json:"intfInfo"`
+	PortInfo struct {
+		Description string `json:"description"`
+		Name        string `json:"name"`
+		Protocol    string `json:"protocol"`
+		Port        string `json:"port"`
+	} `json:"portInfo"`
+	DevicePortInfo struct {
+		Protocol string `json:"protocol"`
+	} `json:"devicePortInfo"`
+	Pid       string `json:"pid,omitempty"`
+	WanIntf   string `json:"wanIntf,omitempty"`
+	Blocked   bool   `json:"blocked,omitempty"`
+	BlockPid  string `json:"blockPid,omitempty"`
+	BlockType string `json:"blockType,omitempty"`
+	Category  string `json:"category,omitempty"`
+	App       string `json:"app,omitempty"`
+}
+
+type FirewallaFlowlogBody struct {
+	Startts int64 `json:"startts"`
+	Endts   int64 `json:"endts"`
+}

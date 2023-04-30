@@ -1,7 +1,7 @@
 go-firewalla
 ============
 
-Download device details and alarms from the Firewalla MSP API. The results are stored to a local CSV file. 
+Download device details, flowlogs and alarms from the Firewalla MSP API. The results are stored to a local CSV file. 
 
 ## Installation
 
@@ -12,15 +12,16 @@ Download device details and alarms from the Firewalla MSP API. The results are s
     "url": "https://<url>.firewalla.net/v1/"
 }
 ```
-- Run `go build` to build the binary.
+- Run `go build` to build the binary (`firewalla`)
+- Run `chmod +x firewalla` to make the binary executable
 - Now you can one of the following commands:
 ```bash
-# Get all devices
-./go-firewalla devices
+# Get all devices (devices.csv)
+$ firewalla -mode devices
 
-# Get all alarms
-./go-firewalla alarms
+# Get all alarms (alarms.csv)
+$ firewalla -mode alarms
 
-# Get all devices and alarms
-./go-firewalla all
+# Get all flowlogs for last X hours (default 1) (flowlogs.csv)
+$ firewalla -mode flowlogs -hours 2
 ```
