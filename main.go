@@ -54,8 +54,6 @@ func makeGetRequest(client *http.Client, url string, token string) []byte {
 	req.Header.Set("Authorization", token)
 	req.Header.Add("Accept", "application/json")
 
-	//client := &http.Client{}
-
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Fatal(err)
@@ -73,15 +71,14 @@ func makeGetRequest(client *http.Client, url string, token string) []byte {
 }
 
 // make post request to api, return body
-
-func makePostRequest(url string, token string, startTs float64, endTs float64) []byte {
+func makePostRequest(url string, token string, startTs float64, endTs float64, client *http.Client) []byte {
 
 	postData := map[string]float64{
 		"start": startTs,
 		"end":   endTs,
 	}
-	postBody, err := json.Marshal(postData)
 
+	postBody, err := json.MarshalIndent(postData, "", "  ")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -96,9 +93,7 @@ func makePostRequest(url string, token string, startTs float64, endTs float64) [
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("Content-Type", "application/json")
 
-	client := &http.Client{}
 	resp, err := client.Do(req)
-
 	if err != nil {
 		log.Fatal(err, resp)
 	}
@@ -122,56 +117,57 @@ func getDevices(client *http.Client, url string, token string) {
 	counter = 0
 
 	fmt.Println("* devices started")
+	wg = sync.WaitGroup{}
 
 	// Create file
-	f, err := os.Create("devices.json")
+	file, err := os.Create("devices.json")
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	defer f.Close()
+	defer file.Close()
 
 	body := makeGetRequest(client, url+"device/list", token)
 	devices := mystruct.FirewallaDevices{}
 	json.Unmarshal([]byte(body), &devices)
 
-	wg = sync.WaitGroup{}
-
 	for _, device := range devices {
 
 		wg.Add(1)
-		go getDeviceDetail(client, url, token, device.Gid, device.Mac, f)
+		go getDeviceDetail(client, url, token, device.Gid, device.Mac, file)
 
 	}
 
 	wg.Wait()
 
-	fmt.Println("* devices saved to devices.json (", counter, ")")
-
+	fmt.Println("* completed -", counter, "devices saved to devices.json")
 }
 
 // get device detail
-func getDeviceDetail(client *http.Client, url string, token string, gid string, mac string, f *os.File) {
+func getDeviceDetail(client *http.Client, url string, token string, gid string, mac string, file *os.File) {
 
 	body := makeGetRequest(client, url+"device/"+gid+"/"+mac, token)
 
 	deviceDetail := mystruct.FirewallaDeviceDetail{}
 	json.Unmarshal([]byte(body), &deviceDetail)
 
-	// Write all fields as a JSON string to file
-	jsonString, _ := json.Marshal(deviceDetail)
-	f.Write([]byte(string(jsonString) + "\n"))
+	// convert lastActive float64 to datestring str
+	ts, err := strconv.ParseFloat(deviceDetail.LastActive, 64)
+	if err != nil {
+		log.Fatal(err)
+	}
+	datestr := time.Unix(int64(ts), 0).Format("2006-01-02 15:04:05")
+	deviceDetail.Date = datestr
 
 	counter++
 
 	if counter%5 == 0 {
-
-		fmt.Println("- ", counter, " devices completed")
-
+		fmt.Println("-", counter, "devices completed")
 	}
 
-	wg.Done()
+	// write deviceDetail to file
+	json.NewEncoder(file).Encode(deviceDetail)
 
+	wg.Done()
 }
 
 // get alarms
@@ -192,40 +188,41 @@ func getAlarms(client *http.Client, url, token string) {
 	json.Unmarshal([]byte(body), &alarms)
 
 	fmt.Println("* alarms started")
+	wg = sync.WaitGroup{}
 
 	for _, alarm := range alarms {
 
-		aid := alarm.Aid
-		gid := alarm.Gid
-
 		wg.Add(1)
-
-		go getAlarmDetail(client, url, token, aid, gid, file)
+		go getAlarmDetail(client, url, token, alarm.Aid, alarm.Gid, file)
 
 	}
 
 	wg.Wait()
 
-	fmt.Println("* alarms saved to alarms.json (", counter, ")")
+	fmt.Println("* completed -", counter, "alarms saved to alarms.json")
 }
 
 // get alarm detail
-func getAlarmDetail(client *http.Client, url string, token string, aid string, gid string, f *os.File) {
+func getAlarmDetail(client *http.Client, url string, token string, aid string, gid string, file *os.File) {
 
 	body := makeGetRequest(client, url+"alarm/"+gid+"/"+aid, token)
 
 	alarmDetail := mystruct.FirewallaAlarmDetail{}
 	json.Unmarshal([]byte(body), &alarmDetail)
 
-	// Write all fields as a JSON string to file
-	jsonString, _ := json.Marshal(alarmDetail)
-	f.Write([]byte(string(jsonString) + "\n"))
+	// convert float64 to int
+	ts := int64(alarmDetail.Timestamp)
+	datestr := time.Unix(ts, 0).Format("2006-01-02 15:04:05")
+	alarmDetail.Date = datestr
 
 	counter++
 
 	if counter%5 == 0 {
-		fmt.Println("- ", counter, "alarms completed")
+		fmt.Println("-", counter, "alarms completed")
 	}
+
+	// write alarmDetail to file
+	json.NewEncoder(file).Encode(alarmDetail)
 
 	wg.Done()
 }
@@ -249,6 +246,7 @@ func getFlowLogs(client *http.Client, url string, token string, hours int64) {
 
 	fmt.Println("* flowlogs started - get last " + strconv.Itoa(int(hours)) + " hours")
 
+	// loop through flow logs
 	for {
 
 		// get flow logs
@@ -257,10 +255,11 @@ func getFlowLogs(client *http.Client, url string, token string, hours int64) {
 			token,
 			startTs,
 			endTs,
+			client,
 		)
 
 		// convert to struct
-		flowlogs := mystruct.FirewallaFlowlogDetail{}
+		flowlogs := []mystruct.FirewallaFlowlogDetail{}
 		json.Unmarshal([]byte(body), &flowlogs)
 
 		// create new minTs
@@ -269,20 +268,17 @@ func getFlowLogs(client *http.Client, url string, token string, hours int64) {
 		// loop through flowlogs
 		for _, flowlog := range flowlogs {
 
-			// check for lowest timestamp
+			// check for lowest timestamp found
 			if flowlog.Ts < minTs {
 				minTs = flowlog.Ts
 			}
 
-			// write all fields as a JSON string to file
-			jsonString, _ := json.Marshal(flowlog)
+			// get date
+			datestr := time.Unix(int64(flowlog.Ts), 0).Format("2006-01-02 15:04:05")
+			flowlog.Date = datestr
 
-			// add date string to JSON
-			jsonDateString := `{"date":"` + time.Unix(int64(flowlog.Ts), 0).Format("2006-01-02 15:04:05") + `",`
-			jsonString = []byte(jsonDateString + string(jsonString[1:]))
-
-			// write to file
-			file.Write([]byte(string(jsonString) + "\n"))
+			// write flowlog to file
+			json.NewEncoder(file).Encode(flowlog)
 
 			// increment counter
 			counter++
@@ -293,7 +289,7 @@ func getFlowLogs(client *http.Client, url string, token string, hours int64) {
 		diff := endTs - startTs
 		percentage := 100 - int((diff/float64(hours*60*60))*100)
 
-		fmt.Println("- flows", percentage, "% completed")
+		fmt.Println("- flows", percentage, "% -", time.Unix(int64(minTs), 0).Format("02/01 15:04:05"))
 
 		// set new endTs
 		endTs = minTs
@@ -305,13 +301,15 @@ func getFlowLogs(client *http.Client, url string, token string, hours int64) {
 		}
 	}
 
-	fmt.Println("* flowlogs saved to flowlogs.json (", counter, ")")
+	fmt.Println("* completed -", counter, "flowlogs saved to flowlogs.json")
 }
 
 // main function
 func main() {
 
-	client := &http.Client{}
+	client := &http.Client{
+		Timeout: time.Second * 30,
+	}
 
 	// read config.json file
 	url, token := readJsonConfig()
@@ -322,9 +320,9 @@ func main() {
 
 	// Define help flag
 	helpFlag := flag.Bool("help", false, "Display help menu")
-
 	flag.Parse()
 
+	// store error message
 	errorMsg := "Usage: ./firewalla -mode [devices|alarms|flowlogs -hours [number]]"
 
 	if *helpFlag {
@@ -334,12 +332,16 @@ func main() {
 	}
 
 	if *modeFlag == "devices" || *modeFlag == "d" {
+
 		getDevices(client, url, token)
 
 	} else if *modeFlag == "alarms" || *modeFlag == "a" {
+
 		getAlarms(client, url, token)
 
 	} else if *modeFlag == "flowlogs" || *modeFlag == "f" {
+
 		getFlowLogs(client, url, token, int64(*hoursFlag))
+
 	}
 }

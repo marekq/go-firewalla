@@ -103,6 +103,7 @@ type FirewallaAlarms []struct {
 }
 
 type FirewallaAlarmDetail struct {
+	Date                       string   `json:"date"`
 	PDeviceIP                  string   `json:"p.device.ip"`
 	PDeviceID                  string   `json:"p.device.id"`
 	PDestDomain                string   `json:"p.dest.domain"`
@@ -188,6 +189,7 @@ type FirewallaAlarmDetail struct {
 }
 
 type FirewallaDeviceDetail struct {
+	Date string `json:"date"`
 	Name string `json:"name"`
 	IP   string `json:"ip"`
 	Mac  string `json:"mac"`
@@ -341,7 +343,8 @@ type FirewallaDeviceDetail struct {
 	Ipv6 []any `json:"ipv6"`
 }
 
-type FirewallaFlowlogDetail []struct {
+type FirewallaFlowlogDetail struct {
+	Date         string   `json:"date"`
 	Count        int      `json:"count"`
 	Device       string   `json:"device"`
 	Download     int      `json:"download,omitempty"`
