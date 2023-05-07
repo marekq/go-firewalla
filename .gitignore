@@ -3,3 +3,4 @@ alarms.json
 devices.json
 flowlogs.json
 firewalla
+flowlogs/

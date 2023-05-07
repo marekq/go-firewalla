@@ -15,6 +15,7 @@ Download device details, flowlogs and alarms from the Firewalla MSP API. The res
 - Run `go build` to build the binary (`firewalla`)
 - Run `chmod +x firewalla` to make the binary executable
 - Now you can one of the following commands:
+
 ```bash
 # Get all devices (devices.csv)
 $ firewalla -mode devices
@@ -22,6 +23,7 @@ $ firewalla -mode devices
 # Get all alarms (alarms.csv)
 $ firewalla -mode alarms
 
-# Get all flowlogs for last X hours (default 1) (flowlogs.csv)
-$ firewalla -mode flowlogs -hours 2
+# Get all flowlogs for last X hours (default 24) (flowlogs.csv)
+$ firewalla -mode flowlogs
+$ firewalla -mode flowlogs -hours 3
 ```
