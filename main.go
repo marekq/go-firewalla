@@ -332,7 +332,7 @@ func getFlowLogs(client *http.Client, url string, token string, hours int64) {
 		endTime := time.Unix(currentTs+3600, 0)
 
 		// date path: dd/mm/yyyy/
-		datePath := fmt.Sprintf("%d/%02d/%02d/", startTime.Year(), startTime.Month(), startTime.Day())
+		datePath := fmt.Sprintf("/%d/%02d/%02d/", startTime.Year(), startTime.Month(), startTime.Day())
 		err := os.MkdirAll(flowlogsFolder+datePath, 0755)
 		if err != nil {
 			fmt.Println("Error creating folders:", err)
