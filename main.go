@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,10 +21,24 @@ import (
 )
 
 // define files and folders
-var configFile = "config.json"
-var devicesFile = "devices.json"
-var alarmsFile = "alarms.json"
-var flowlogsFolder = "flowlogs/"
+var (
+	configFile     string
+	devicesFile    string
+	alarmsFile     string
+	flowlogsFolder string
+)
+
+// init file and folder paths
+func init() {
+	_, currentFilePath, _, _ := runtime.Caller(0)
+	currentDir := filepath.Dir(currentFilePath)
+
+	configFile = filepath.Join(currentDir, "config.json")
+	devicesFile = filepath.Join(currentDir, "devices.json")
+	alarmsFile = filepath.Join(currentDir, "alarms.json")
+	flowlogsFolder = filepath.Join(currentDir, "flowlogs/")
+
+}
 
 // create global counter and waitgroup
 var counter int
