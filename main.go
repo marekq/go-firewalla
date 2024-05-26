@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -27,6 +28,8 @@ var (
 	alarmsFile     string
 	flowlogsFolder string
 )
+
+var timeLayout = "2006-01-02_15-04"
 
 // init file and folder paths
 func init() {
@@ -71,7 +74,7 @@ func makeGetRequest(client *http.Client, url string, token string) []byte {
 
 	req, err := http.NewRequest("GET", url, bytes.NewBuffer(nil))
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Error creating request ", err)
 	}
 
 	// set headers
@@ -80,7 +83,7 @@ func makeGetRequest(client *http.Client, url string, token string) []byte {
 
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Error making request ", err, req)
 	}
 
 	if resp.StatusCode != 200 {
@@ -94,48 +97,8 @@ func makeGetRequest(client *http.Client, url string, token string) []byte {
 
 }
 
-// make post request to api, return body
-func makePostRequest(url string, token string, startTs float64, endTs float64, client *http.Client) []byte {
-
-	postData := map[string]float64{
-		"start": startTs,
-		"end":   endTs,
-	}
-
-	postBody, err := json.MarshalIndent(postData, "", "  ")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(postBody))
-	if err != nil {
-		log.Fatal(err, req)
-	}
-
-	// set headers
-	req.Header.Set("Authorization", token)
-	req.Header.Add("Accept", "application/json")
-	req.Header.Add("Content-Type", "application/json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Fatal(err, resp)
-	}
-
-	if resp.StatusCode != 200 {
-		log.Fatal("Status code error:", resp.StatusCode, resp.Status)
-	}
-
-	defer resp.Body.Close()
-
-	// convert to []byte
-	respBody, _ := io.ReadAll(resp.Body)
-
-	return respBody
-}
-
 // get devices
-func getDevices(client *http.Client, url string, token string) {
+func getDevices(client *http.Client, url string, token string, limit int64) {
 
 	// Reset global counter
 	counter = 0
@@ -146,56 +109,31 @@ func getDevices(client *http.Client, url string, token string) {
 	// Create file
 	file, err := os.Create(devicesFile)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Error creating file ", err)
 	}
 	defer file.Close()
 
-	body := makeGetRequest(client, url+"device/list", token)
+	body := makeGetRequest(client, url+"devices", token)
 	devices := mystruct.FirewallaDevices{}
 	json.Unmarshal([]byte(body), &devices)
 
 	for _, device := range devices {
 
-		wg.Add(1)
-		go getDeviceDetail(client, url, token, device.Gid, device.Mac, file)
+		fmt.Println(" * ", device)
+		counter++
+
+		// write deviceDetail to file
+		json.NewEncoder(file).Encode(device)
 
 	}
-
-	wg.Wait()
 
 	fmt.Println("* completed -", counter, "devices saved to devices.json")
 }
 
-// get device detail
-func getDeviceDetail(client *http.Client, url string, token string, gid string, mac string, file *os.File) {
-
-	body := makeGetRequest(client, url+"device/"+gid+"/"+mac, token)
-
-	deviceDetail := mystruct.FirewallaDeviceDetail{}
-	json.Unmarshal([]byte(body), &deviceDetail)
-
-	// convert lastActive float64 to datestring str
-	ts, err := strconv.ParseFloat(deviceDetail.LastActive, 64)
-	if err != nil {
-		log.Fatal(err)
-	}
-	datestr := time.Unix(int64(ts), 0).Format("2006-01-02 15:04:05")
-	deviceDetail.Date = datestr
-
-	counter++
-
-	if counter%5 == 0 {
-		fmt.Println("-", counter, "devices completed")
-	}
-
-	// write deviceDetail to file
-	json.NewEncoder(file).Encode(deviceDetail)
-
-	wg.Done()
-}
-
 // get alarms
-func getAlarms(client *http.Client, url, token string) {
+func getAlarms(client *http.Client, baseUrl, token string, limit int64, hours int64) {
+
+	fmt.Println("* alarms started")
 
 	// Reset global counter
 	counter = 0
@@ -203,21 +141,29 @@ func getAlarms(client *http.Client, url, token string) {
 	// Create file
 	file, err := os.Create(alarmsFile)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Error creating file ", err)
 	}
 	defer file.Close()
 
-	body := makeGetRequest(client, url+"alarm/list", token)
+	groupBy := "ts,status,alarmType,summary,box,device,deviceIPAddress,category,domain,destination"
+	encodedGroupBy := "groupBy=" + url.QueryEscape(groupBy)
+
+	fullUrl := baseUrl + "alarms" + "?" + encodedGroupBy + "&limit=" + strconv.FormatInt(limit, 10)
+
+	body := makeGetRequest(client, fullUrl, token)
 	alarms := mystruct.FirewallaAlarms{}
 	json.Unmarshal([]byte(body), &alarms)
 
 	fmt.Println("* alarms started")
 	wg = sync.WaitGroup{}
 
-	for _, alarm := range alarms {
+	fmt.Println("* found", strconv.Itoa(alarms.Count), "alarms")
 
+	for _, alarm := range alarms.Results {
+
+		// get alarm detail
 		wg.Add(1)
-		go getAlarmDetail(client, url, token, alarm.Aid, alarm.Gid, file)
+		go getAlarmDetail(client, baseUrl, token, strconv.Itoa(alarm.Aid), alarm.Gid, file)
 
 	}
 
@@ -227,16 +173,18 @@ func getAlarms(client *http.Client, url, token string) {
 }
 
 // get alarm detail
-func getAlarmDetail(client *http.Client, url string, token string, aid string, gid string, file *os.File) {
+func getAlarmDetail(client *http.Client, baseUrl string, token string, aid string, gid string, file *os.File) {
 
-	body := makeGetRequest(client, url+"alarm/"+gid+"/"+aid, token)
+	fullUrl := baseUrl + "alarms/" + gid + "/" + aid
+	body := makeGetRequest(client, fullUrl, token)
 
 	alarmDetail := mystruct.FirewallaAlarmDetail{}
 	json.Unmarshal([]byte(body), &alarmDetail)
+	fmt.Println(" % ", alarmDetail)
 
 	// convert float64 to int
-	ts := int64(alarmDetail.Timestamp)
-	datestr := time.Unix(ts, 0).Format("2006-01-02 15:04:05")
+	ts := int64(alarmDetail.Ts)
+	datestr := time.Unix(ts, 0).Format(time.RFC3339)
 	alarmDetail.Date = datestr
 
 	counter++
@@ -276,7 +224,7 @@ func getFlowlogsFirstTs(hours int64) time.Time {
 
 				ts, err := strconv.ParseInt(matches[1], 10, 64)
 				if err != nil {
-					log.Fatal(err)
+					log.Fatal("Error converting timestamp ", err)
 				}
 
 				timeTs := time.Unix(ts, 0)
@@ -292,33 +240,33 @@ func getFlowlogsFirstTs(hours int64) time.Time {
 	})
 
 	if err != nil {
-		fmt.Println("! error walking through the directory:", err)
+		fmt.Println("! error walking through the directory: ", err)
 
 	}
 
 	if newestTimestamp.IsZero() {
 		fmt.Println("! no flowlog folder found, using ", hours, " hours")
 
-		// return hours ago
+		// return X hours ago
 		return time.Now().Add(-time.Duration(hours) * time.Hour)
 
 	}
-
-	fmt.Println("* flowlogs starting with timestamp:", newestTimestamp.Format("2006-01-02 15:04"))
 
 	// return newestTimestamp
 	return newestTimestamp
 }
 
 // get flowlogs
-func getFlowLogs(client *http.Client, url string, token string, hours int64) {
+func getFlowLogs(client *http.Client, baseUrl string, token string, limitFlag int64, hoursFlag int64, debugFlag bool) {
+
+	fmt.Println("* flowlogs started - ", hoursFlag, "hours", "limit", limitFlag, "debug", debugFlag)
 
 	// reset global counter
 	counter = 0
 	wg = sync.WaitGroup{}
 
 	// create firstTs and lastTs
-	firstTs := getFlowlogsFirstTs(hours).Unix()
+	firstTs := getFlowlogsFirstTs(hoursFlag).Unix()
 	lastTs := time.Now().Unix()
 
 	// round down the firstTs to the nearest full hour (i.e. 15:30 -> 15:00)
@@ -340,88 +288,114 @@ func getFlowLogs(client *http.Client, url string, token string, hours int64) {
 		}
 
 		// file name: flowlogs_YYYYMMDDTHHMM_to_YYYYMMDDTHHMM.csv
-		logFileName := fmt.Sprintf("%s_%d.csv", startTime.Format("2006-01-02_15-04"), currentTs)
+		logFileName := fmt.Sprintf("%s_%d.csv", startTime.Format(timeLayout), currentTs)
 
 		// full path: flowlogs/2020/01/01/20200101T0000.csv
 		logFilePath := flowlogsFolder + datePath + logFileName
 
 		// call getFlowLogsDetails for each hour
 		wg.Add(1)
-		go getFlowLogsDetail(client, url, token, logFilePath, float64(startTime.Unix()), float64(endTime.Unix()), float64(firstTs))
+		go getFlowLogsDetail(
+			client,
+			baseUrl,
+			token,
+			logFilePath,
+			startTime.Unix(),
+			endTime.Unix(),
+			firstTs,
+			limitFlag,
+			hoursFlag,
+			debugFlag,
+			counter,
+		)
 
 	}
 
 	wg.Wait()
 
-	fmt.Println("* completed", counter, "flowlogs, saved to flowlogs/ folder")
-
 }
 
 // get flow logs from specific hour (startTs to endTs)
-func getFlowLogsDetail(client *http.Client, url string, token string, logFilePath string, startTs float64, endTs float64, firstTs float64) {
-
-	flowLogCounter := 0
-	startDateString := time.Unix(int64(startTs), 0).Format("2006-01-02 15:04")
+func getFlowLogsDetail(
+	client *http.Client,
+	baseUrl string,
+	token string,
+	logFilePath string,
+	startTs int64,
+	endTs int64,
+	firstTs int64,
+	limit int64,
+	hoursFlag int64,
+	debugFlag bool,
+	counter int,
+) {
 
 	// create file
 	file, err := os.Create(logFilePath)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Cannot create file ", err)
 	}
 	defer file.Close()
+
+	groupBy := "ts,status,box,source,sourceIP,sport,device,network,destination,destinationIP,dport,domain,protocol,category,region,direction,blockType,upload,download,total,count"
+	encodedGroupBy := "groupBy=" + url.QueryEscape(groupBy)
+
+	cursor := ""
 
 	// loop through flow logs
 	for {
 
+		fullUrl := baseUrl + "flows?query=ts%3A" + strconv.FormatInt(startTs, 10) + "-" + strconv.FormatInt(endTs, 10) + "&sortBy=ts:desc&limit=" + strconv.Itoa(int(limit)) + "&" + encodedGroupBy + "&cursor=" + url.QueryEscape(cursor)
+
 		// get flow logs for specific hour (startTs to endTs)
-		body := makePostRequest(
-			url+"flows/query",
-			token,
-			startTs,
-			endTs,
-			client,
-		)
+		body := makeGetRequest(client, fullUrl, token)
 
 		// convert to struct
-		flowlogs := []mystruct.FirewallaFlowlogDetail{}
+		flowlogs := mystruct.FirewallaFlowlog{}
 		json.Unmarshal([]byte(body), &flowlogs)
 
 		// create new minTs
 		minTs := endTs
 
 		// loop through flowlog responses line by line
-		for _, flowlog := range flowlogs {
+		for _, flowlog := range flowlogs.Results {
 
-			flowLogCounter += 1
+			if debugFlag {
+				fmt.Println(" % ", flowlog)
+			}
+			counter += 1
 
 			// check for lowest timestamp found
-			if flowlog.Ts < minTs {
-				minTs = flowlog.Ts
+			if int64(flowlog.Ts) < minTs {
+				minTs = int64(flowlog.Ts)
 			}
 
 			// get date
-			datestr := time.Unix(int64(flowlog.Ts), 0).Format("2006-01-02 15:04:05")
+			datestr := time.Unix(int64(flowlog.Ts), 0).Format(time.RFC3339)
 			flowlog.Date = datestr
 
 			// write flowlog to file
 			json.NewEncoder(file).Encode(flowlog)
 
-			// increment counter
-			counter++
-
 		}
+
+		counter += flowlogs.Count
+
+		fmt.Println("- retrieved " + strconv.Itoa(counter) + " - " + time.Unix(minTs, 0).Format("2006-01-02 15:04:05") + " in " + logFilePath)
 
 		// set new endTs
 		endTs = minTs
 
+		// set new cursor
+		cursor = flowlogs.NextCursor
+
 		// break if startTs is greater than endTs
 		// this means we have reached the end of the flowlogs
-		if len(flowlogs) != 200 || startTs > endTs {
+		if cursor == "" {
 			break
 		}
 	}
 
-	fmt.Printf("- %d flowlogs for %s\n", flowLogCounter, startDateString)
 	wg.Done()
 }
 
@@ -433,18 +407,20 @@ func main() {
 	}
 
 	// read config.json file
-	url, token := readJsonConfig()
+	baseUrl, token := readJsonConfig()
 
 	// parse arguments
-	modeFlag := flag.String("mode", "", "Mode to run the script (devices, alarms, or flowlogs)")
-	hoursFlag := flag.Int64("hours", 24, "Flowlog hours to retrieve")
+	modeFlag := flag.String("mode", "flowlogs", "Mode to run the script (devices, alarms, flowlogs) (default flowlogs)")
+	hoursFlag := flag.Int64("hours", 24, "(Optional) Flowlog hours to retrieve (default 24)")
+	limitFlag := flag.Int64("limit", 200, "(Optional) Results limit (default 200)")
+	debugFlag := flag.Bool("debug", false, "Debug mode")
 
 	// Define help flag
 	helpFlag := flag.Bool("help", false, "Display help menu")
 	flag.Parse()
 
 	// store error message
-	errorMsg := "Usage: ./firewalla -mode [devices|alarms|flowlogs -hours [number]]"
+	errorMsg := "Usage: ./firewalla -mode [devices|alarms|flowlogs] -hours [number] -limit [number] -debug"
 
 	if *helpFlag {
 		fmt.Println(errorMsg)
@@ -454,15 +430,21 @@ func main() {
 
 	if *modeFlag == "devices" || *modeFlag == "d" {
 
-		getDevices(client, url, token)
+		getDevices(client, baseUrl, token, *limitFlag)
 
 	} else if *modeFlag == "alarms" || *modeFlag == "a" {
 
-		getAlarms(client, url, token)
+		getAlarms(client, baseUrl, token, *limitFlag, *hoursFlag)
 
 	} else if *modeFlag == "flowlogs" || *modeFlag == "f" {
 
-		getFlowLogs(client, url, token, *hoursFlag)
+		getFlowLogs(client, baseUrl, token, *hoursFlag, *limitFlag, *debugFlag)
+
+	} else {
+
+		fmt.Println(errorMsg)
+		flag.PrintDefaults()
+		return
 
 	}
 }
