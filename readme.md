@@ -17,13 +17,30 @@ Download device details, flowlogs and alarms from the Firewalla MSP API. The res
 - Now you can one of the following commands:
 
 ```bash
-# Get all devices (devices.csv)
+Usage of ./firewalla:
+  -debug
+        Debug mode
+  -help
+        Display help menu
+  -hours int
+        (Optional) Flowlog hours to retrieve (default 24)
+  -limit int
+        (Optional) Results limit (default 200)
+  -mode string
+        Mode to run the script (devices, alarms, flowlogs) (default "flowlogs")
+```
+
+
+## CLI Examples
+```bash
+# Get all devices (write to devices.csv)
 $ firewalla -mode devices
 
-# Get all alarms (alarms.csv)
+# Get all alarms (write to alarms.csv)
 $ firewalla -mode alarms
 
-# Get all flowlogs for last X hours (default 24) (flowlogs.csv)
+# Get all flowlogs for last X hours (default 24) (write to flowlogs/ folder)
 $ firewalla -mode flowlogs
 $ firewalla -mode flowlogs -hours 3
+$ firewalla -mode flowlogs -hours 48 -debug
 ```

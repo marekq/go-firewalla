@@ -410,9 +410,9 @@ func main() {
 	baseUrl, token := readJsonConfig()
 
 	// parse arguments
-	modeFlag := flag.String("mode", "flowlogs", "Mode to run the script (devices, alarms, flowlogs) (default flowlogs)")
-	hoursFlag := flag.Int64("hours", 24, "(Optional) Flowlog hours to retrieve (default 24)")
-	limitFlag := flag.Int64("limit", 200, "(Optional) Results limit (default 200)")
+	modeFlag := flag.String("mode", "flowlogs", "Mode to run the script (devices, alarms, flowlogs)")
+	hoursFlag := flag.Int64("hours", 24, "(Optional) Flowlog hours to retrieve")
+	limitFlag := flag.Int64("limit", 200, "(Optional) Results limit")
 	debugFlag := flag.Bool("debug", false, "Debug mode")
 
 	// Define help flag
